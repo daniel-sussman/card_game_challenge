@@ -5,8 +5,9 @@ class Card():
     def __init__(self, number, suit):
         self.number = number
         self.suit = suit
-        self.value = self._fetch_value()
         self.is_the_black_lady = number == 'Q' and suit == '♠'
+        self.value = self._fetch_value()
+        self.score = self._fetch_score()
     
     def __repr__(self):
         return(self.number + self.suit)
@@ -16,6 +17,14 @@ class Card():
             return int(self.number)
         else:
             return ['J', 'Q', 'K', 'A'].index(self.number) + 11
+    
+    def _fetch_score(self):
+        if self.suit == '♡':
+            return 1
+        elif self.is_the_black_lady:
+            return 13
+        else:
+            return 0
 
 class Deck():
     def __init__(self):
@@ -60,7 +69,7 @@ class Player():
     def make_move(self, move=None, suit=None, hearts_broken=False):
         options = self._define_options(suit, hearts_broken)
 
-        move = self.game.view.prompt_for_move(self, options) if self.playable else move or random.choice(options)
+        move = move or (self.game.view.prompt_for_move(self, options) if self.playable else random.choice(options))
         self.hand.remove(move)
         return move
     
@@ -73,22 +82,26 @@ class Player():
     
     def identify_card(self, card_value):
         return next(iter(card for card in self.hand if card.number + card.suit == card_value), None)
+    
+    def shot_the_moon(self):
+        return self.score == 26
 
 class Game():
     def __init__(self):
         self.deck = Deck()
         self.view = View(self)
+        self._fetch_players()
     
     def new_game(self):
-        self.fetch_players()
         self.deck.deal(self.players)
         self.hearts_broken = False
         self.turn = self._player_with_two_of_clubs()
         for i in range(13):
-            plays = self.move()
+            plays = self._move()
             self.resolve_trick(plays)
-    
-    def fetch_players(self):
+        self._conclude_game()
+
+    def _fetch_players(self):
         player_name = self.view.prompt_for_name()
         self.players = [Player(self, player_name, True)]
         for i in range(3):
@@ -97,7 +110,7 @@ class Game():
     def player_names(self):
         return [player.name for player in self.players]
 
-    def move(self):
+    def _move(self):
         lead_player, other_players = self._identify_lead_player(self.turn)
         lead_player_move = self._lead_player_move(lead_player)
         lead_suit = lead_player_move.suit
@@ -112,31 +125,48 @@ class Game():
     
     def _lead_player_move(self, lead_player):
         self.view.show_cards_and_tricks(lead_player)
-        move = lead_player.identify_card('2♣') if '2♣' in lead_player.cards() else lead_player.make_move(hearts_broken=self.hearts_broken)
+        move = lead_player.make_move(lead_player.identify_card('2♣')) if '2♣' in lead_player.cards() else lead_player.make_move(hearts_broken=self.hearts_broken)
+
         self.view.report_move(lead_player.name, move)
         return move
     
-    def resolve_trick(self, plays):
+    def resolve_trick(self, plays, hearts_were_broken=False):
+        cards, trump_card, trick_taker = self._parse_trick(plays)
+        trick_taker.tricks += cards
+        trick_taker.score += self.compute_trick(cards)
+        self.turn = self.players.index(trick_taker)
+        if not self.hearts_broken and '♡' in [card.suit for card in cards]:
+            hearts_were_broken = True
+            self.hearts_broken = True
+        self.view.resolve_trick(trump_card, trick_taker.name, hearts_were_broken)
+
+    def _parse_trick(self, plays):
         cards = [card for (player, card) in plays]
         lead_suit = cards[0].suit
         cards_of_lead_suit = [card for card in cards if card.suit == lead_suit]
         trump_card = max(cards_of_lead_suit, key=lambda card: card.value)
-        print(f"The highest card of the lead suit was {trump_card}")
         trick_taker = next(player for (player, card) in plays if card == trump_card)
-        print(f"{trick_taker.name} takes the trick.")
-        trick_taker.tricks.append(cards)
-        trick_taker.score += self.compute_trick(cards)
-        self.turn = self.players.index(trick_taker)
-        if not self.hearts_broken and '♡' in [card.suit for card in cards]:
-            print("Also, hearts have now been broken!")
-            self.hearts_broken = True
-        return input("OK? ")
+        return (cards, trump_card, trick_taker)
     
     def compute_trick(self, trick):
-        result = len([card for card in trick if card.suit == '♡'])
-        if any([card for card in trick if card.is_the_black_lady]):
-            result += 13
-        return result
+        return sum([card.score for card in trick])
+    
+    def _conclude_game(self):
+        tally = self._fetch_card_tally()
+        self.view.game_over(tally, self.moon_shooter)
+
+    def _fetch_card_tally(self):
+        self.moon_shooter = self._identify_moon_shooter()
+        if self.moon_shooter:
+            for schmuck in [player for player in self.players if not player == self.moon_shooter]:
+                schmuck.score = 26
+            self.moon_shooter.score = 0
+
+        return [(player.name, [card for card in player.tricks if card.score], player.score) for player in self.players]
+
+    def _identify_moon_shooter(self):
+        moon_shooters = [player for player in self.players if player.shot_the_moon()] or [None]
+        return next(iter(moon_shooters))
 
     def _identify_lead_player(self, turn):
         lead_player = self.players[turn]
@@ -180,8 +210,28 @@ class View():
         print(f"It's {lead_player.name}'s turn to lead:\n")
         for player in self.game.players:
             print(player.name, player.hand)
-        for player in [p for p in self.game.players if p.playable]:
-            print(f"\n{player.name}'s score: {player.score}")
+        print('')
+        # for player in [p for p in self.game.players if p.playable]:
+        #     print(f"\n{player.name}'s score: {player.score}")
+    
+    def resolve_trick(self, trump_card, trick_taker, hearts_were_broken):
+        print(f"The highest card of the lead suit was {trump_card}")
+        print(f"{trick_taker} takes the trick.")
+        if hearts_were_broken:
+            print("Also, hearts have now been broken!")
+        input("OK? ")
+    
+    def game_over(self, tally, moon_shooter):
+        system('clear')
+        scorecard = ""
+        if moon_shooter:
+            print(f"You schmucks, {moon_shooter.name} shot the moon!\n")
+        else:
+            print(f"Good game, everybody, good game!\n")
+        for t in tally:
+            print(t[0], t[1])
+            scorecard += f"{t[0]}: {t[2]} "
+        print("\nFinal scores: " + scorecard)
+        print('Game Over')
 
-game = Game()
-game.new_game()
+game = Game().new_game()
