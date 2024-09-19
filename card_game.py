@@ -94,8 +94,8 @@ class Player():
 class Computer():
     def __init__(self, suit, options, previous_plays):
         self.suit = suit
-        self.high_card = self._fetch_high_card() if self.previous_plays else None
         self.previous_plays = previous_plays
+        self.high_card = self._fetch_high_card()
         self.options = options
         self.leading = not any(previous_plays)
     
@@ -113,7 +113,7 @@ class Computer():
         return random.choice(self.options)
         
     def _fetch_high_card(self):
-        return max([card.sort_value for card in self.previous_plays if card.suit == self.suit])
+        return None if not self.previous_plays else max([card.sort_value for card in self.previous_plays if card.suit == self.suit])
         
     def _avoids_leading_high(self):
         print('avoiding leading high...') # for testing
