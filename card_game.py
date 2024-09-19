@@ -6,8 +6,8 @@ class Card():
         self.number = number
         self.suit = suit
         self.is_the_black_lady = number == 'Q' and suit == '♠'
-        self.value = self._fetch_value()
-        self.score = self._fetch_score()
+        self.value = self._fetch_value() # for sorting
+        self.score = self._fetch_score() # for scoring
     
     def __repr__(self):
         return(self.number + self.suit)
@@ -98,7 +98,7 @@ class Game():
         self.turn = self._player_with_two_of_clubs()
         for i in range(13):
             plays = self._move()
-            self.resolve_trick(plays)
+            self._resolve_trick(plays)
         self._conclude_game()
 
     def _fetch_players(self):
@@ -130,10 +130,10 @@ class Game():
         self.view.report_move(lead_player.name, move)
         return move
     
-    def resolve_trick(self, plays, hearts_were_broken=False):
+    def _resolve_trick(self, plays, hearts_were_broken=False):
         cards, trump_card, trick_taker = self._parse_trick(plays)
         trick_taker.tricks += cards
-        trick_taker.score += self.compute_trick(cards)
+        trick_taker.score += self._compute_trick(cards)
         self.turn = self.players.index(trick_taker)
         if not self.hearts_broken and '♡' in [card.suit for card in cards]:
             hearts_were_broken = True
@@ -148,7 +148,7 @@ class Game():
         trick_taker = next(player for (player, card) in plays if card == trump_card)
         return (cards, trump_card, trick_taker)
     
-    def compute_trick(self, trick):
+    def _compute_trick(self, trick):
         return sum([card.score for card in trick])
     
     def _conclude_game(self):
