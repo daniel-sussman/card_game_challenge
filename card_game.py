@@ -6,13 +6,13 @@ class Card():
         self.number = number
         self.suit = suit
         self.is_the_black_lady = number == 'Q' and suit == '♠'
-        self.value = self._fetch_value() # for sorting
+        self.sort_value = self._fetch_sort_value() # for sorting
         self.score = self._fetch_score() # for scoring
     
     def __repr__(self):
         return(self.number + self.suit)
     
-    def _fetch_value(self):
+    def _fetch_sort_value(self):
         if self.number in ['2', '3', '4', '5', '6', '7', '8', '9', '10']:
             return int(self.number)
         else:
@@ -61,15 +61,15 @@ class Player():
         return random.choice(choices)
 
     def sort_hand(self):
-        self.hand.sort(key = lambda card: (card.suit, card.value))
+        self.hand.sort(key = lambda card: (card.suit, card.sort_value))
 
     def cards(self):
         return [card.number + card.suit for card in self.hand]
     
-    def make_move(self, move=None, suit=None, hearts_broken=False):
+    def make_move(self, move=None, suit=None, previous_plays=[], hearts_broken=False):
         options = self._define_options(suit, hearts_broken)
 
-        move = move or (self.game.view.prompt_for_move(self, options) if self.playable else random.choice(options))
+        move = move or (self.game.view.prompt_for_move(self, options) if self.playable else Computer(suit, options, previous_plays).choose())
         self.hand.remove(move)
         return move
     
@@ -90,6 +90,58 @@ class Player():
     
     def shot_the_moon(self):
         return self.score == 26
+    
+class Computer():
+    def __init__(self, suit, options, previous_plays):
+        self.suit = suit
+        self.high_card = self._fetch_high_card()
+        self.previous_plays = previous_plays
+        self.options = options
+        self.leading = not any(previous_plays)
+    
+    def choose(self):
+        # print(f"Computer's options are: ", self.options) # for testing
+        if self.leading:
+            self._avoids_leading_high()
+        elif self._can_dump_black_lady():
+            self._dumps_black_lady()
+        elif self._smells_blood():
+            self._avoids_trick()
+        elif self._notices_leading_spades():
+            self._retains_black_lady_if_possible()
+        
+        return random.choice(self.options)
+        
+    def _fetch_high_card(self):
+        return max([card.sort_value for card in self.previous_plays if card.suit == self.suit])
+        
+    def _avoids_leading_high(self):
+        # print('avoiding leading high...') # for testing
+        self.options = [card for card in self.options if card.sort_value < 11] or [min(self.options, key=lambda card: card.sort_value)]
+        
+    def _smells_blood(self):
+        return self.suit == '♡' or any([card for card in self.previous_plays if card.is_the_black_lady])
+    
+    def _notices_leading_spades(self):
+        return self.suit == '♠' and self.high_card < 13
+    
+    def _avoids_trick(self):
+        # print('avoiding trick...') # for testing
+        good_options = [card for card in self.options if card.sort_value < self.high_card]
+        self.options = [max(good_options, key=lambda card: card.sort_value)] if any(good_options) else [min(self.options, key=lambda card: card.sort_value)]
+
+    def _can_dump_black_lady(self):
+        return any(card for card in self.options if card.is_the_black_lady) and (self.suit != '♠' or self.high_card > 12)
+
+    def _retains_black_lady_if_possible(self):
+        # print('retaining black lady if possible...') # for testing
+        good_options = [card for card in self.options if not card.is_the_black_lady]
+        if any(good_options):
+            self.options = good_options
+    
+    def _dumps_black_lady(self):
+        # print('dumping black lady...') # for testing
+        self.options = [card for card in self.options if card.is_the_black_lady]
 
 class Game():
     def __init__(self):
@@ -101,6 +153,8 @@ class Game():
         self.deck.deal(self.players)
         self.hearts_broken = False
         self._trade_three_cards()
+        for player in self.players:
+            player.sort_hand()
         self.turn = self._player_with_two_of_clubs()
         for i in range(13):
             plays = self._move()
@@ -130,7 +184,7 @@ class Game():
 
         plays = [(lead_player, lead_player_move)]
         for player in other_players:
-            play = player.make_move(suit=lead_suit)
+            play = player.make_move(suit=lead_suit, previous_plays=[play for (player, play) in plays])
             self.view.report_move(player.name, play)
             plays.append((player, play))
 
@@ -157,7 +211,7 @@ class Game():
         cards = [card for (player, card) in plays]
         lead_suit = cards[0].suit
         cards_of_lead_suit = [card for card in cards if card.suit == lead_suit]
-        trump_card = max(cards_of_lead_suit, key=lambda card: card.value)
+        trump_card = max(cards_of_lead_suit, key=lambda card: card.sort_value)
         trick_taker = next(player for (player, card) in plays if card == trump_card)
         return (cards, trump_card, trick_taker)
     
