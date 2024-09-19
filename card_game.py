@@ -204,7 +204,7 @@ class View():
     
     def prompt_for_trade(self, player, previous_choices=[]):
         system('clear')
-        print(f"Here's your current hand, {player.name}:", player.hand)
+        print(f"Here's your current hand, {player.name}:", [card for card in player.hand if card not in previous_choices])
         print("\nSelect three cards to swap with your neighbor.\n")
         if previous_choices:
             print('Already chosen:', previous_choices)
