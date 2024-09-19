@@ -94,13 +94,13 @@ class Player():
 class Computer():
     def __init__(self, suit, options, previous_plays):
         self.suit = suit
-        self.high_card = self._fetch_high_card()
+        self.high_card = self._fetch_high_card() if self.previous_plays else None
         self.previous_plays = previous_plays
         self.options = options
         self.leading = not any(previous_plays)
     
     def choose(self):
-        # print(f"Computer's options are: ", self.options) # for testing
+        print(f"Computer's options are: ", self.options) # for testing
         if self.leading:
             self._avoids_leading_high()
         elif self._can_dump_black_lady():
@@ -116,7 +116,7 @@ class Computer():
         return max([card.sort_value for card in self.previous_plays if card.suit == self.suit])
         
     def _avoids_leading_high(self):
-        # print('avoiding leading high...') # for testing
+        print('avoiding leading high...') # for testing
         self.options = [card for card in self.options if card.sort_value < 11] or [min(self.options, key=lambda card: card.sort_value)]
         
     def _smells_blood(self):
@@ -126,7 +126,7 @@ class Computer():
         return self.suit == '♠' and self.high_card < 13
     
     def _avoids_trick(self):
-        # print('avoiding trick...') # for testing
+        print('avoiding trick...') # for testing
         good_options = [card for card in self.options if card.sort_value < self.high_card]
         self.options = [max(good_options, key=lambda card: card.sort_value)] if any(good_options) else [min(self.options, key=lambda card: card.sort_value)]
 
@@ -134,13 +134,13 @@ class Computer():
         return any(card for card in self.options if card.is_the_black_lady) and (self.suit != '♠' or self.high_card > 12)
 
     def _retains_black_lady_if_possible(self):
-        # print('retaining black lady if possible...') # for testing
+        print('retaining black lady if possible...') # for testing
         good_options = [card for card in self.options if not card.is_the_black_lady]
         if any(good_options):
             self.options = good_options
     
     def _dumps_black_lady(self):
-        # print('dumping black lady...') # for testing
+        print('dumping black lady...') # for testing
         self.options = [card for card in self.options if card.is_the_black_lady]
 
 class Game():
