@@ -73,6 +73,11 @@ class Player():
         self.hand.remove(move)
         return move
     
+    def trade_three_cards(self):
+        trades = self.game.view.prompt_for_trade(self) if self.playable else random.sample(self.hand, 3)
+        self.hand = [card for card in self.hand if card not in trades]
+        return trades
+
     def _define_options(self, suit, hearts_broken):
         if not suit:
             return self.hand if hearts_broken else [card for card in self.hand if card.suit != '♡'] or self.hand
@@ -95,6 +100,7 @@ class Game():
     def new_game(self):
         self.deck.deal(self.players)
         self.hearts_broken = False
+        self._trade_three_cards()
         self.turn = self._player_with_two_of_clubs()
         for i in range(13):
             plays = self._move()
@@ -109,6 +115,13 @@ class Game():
     
     def player_names(self):
         return [player.name for player in self.players]
+    
+    def _trade_three_cards(self):
+        trades = []
+        for (i, player) in enumerate(self.players):
+            trades.append(((i + 1) % 4, player.trade_three_cards()))
+        for (i, cards) in trades:
+            self.players[i].hand += cards
 
     def _move(self):
         lead_player, other_players = self._identify_lead_player(self.turn)
@@ -188,6 +201,29 @@ class View():
         response = None
         print("Hey there, how'd you like to play a game of Hearts?\n")
         return input("Please enter your name: ")
+    
+    def prompt_for_trade(self, player, previous_choices=[]):
+        system('clear')
+        print(f"Here's your current hand, {player.name}:", player.hand)
+        print("\nSelect three cards to swap with your neighbor.\n")
+        if previous_choices:
+            print('Already chosen:', previous_choices)
+
+        ordinals = ['First', 'Second', 'Third']
+        response = None
+        while not response:
+            response = player.identify_card(
+                input(f"{ordinals[len(previous_choices)]} card: ")
+            )
+            if not response:
+                print("Sorry, you aren't holding that card.")
+            elif response in previous_choices:
+                response = None
+                print("Sorry, you chose that one already.")
+            else:
+                previous_choices.append(response)
+                return self.prompt_for_trade(player, previous_choices) if len(previous_choices) < 3 else previous_choices
+
     
     def prompt_for_move(self, player, options):
         response = None
